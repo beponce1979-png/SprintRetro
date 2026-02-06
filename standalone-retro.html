@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprint Retrospective</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes blob {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+        .animate-blob {
+            animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+            animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+            animation-delay: 4s;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function SprintRetro() {
+            const defaultQuestions = [
+                {
+                    category: "What went well?",
+                    prompt: "What aspects of the sprint were successful? What should we continue doing?",
+                    icon: "✓",
+                    allowEmojis: true,
+                    allowGifs: true,
+                    required: false
+                },
+                {
+                    category: "What didn't go well?",
+                    prompt: "What challenges did we face? What obstacles slowed us down?",
+                    icon: "⚠",
+                    allowEmojis: true,
+                    allowGifs: true,
+                    required: false
+                },
+                {
+                    category: "What can we improve?",
+                    prompt: "What specific changes could make our next sprint better?",
+                    icon: "↑",
+                    allowEmojis: true,
+                    allowGifs: true,
+                    required: false
+                },
+                {
+                    category: "Action items",
+                    prompt: "What concrete steps will we take based on today's discussion?",
+                    icon: "→",
+                    allowEmojis: true,
+                    allowGifs: false,
+                    required: true
+                }
+            ];
+
+            const [mode, setMode] = useState('user');
+            const [questions, setQuestions] = useState(defaultQuestions);
+            const [currentQuestion, setCurrentQuestion] = useState(0);
+            const [answers, setAnswers] = useState(Array(defaultQuestions.length).fill(''));
+            const [showSummary, setShowSummary] = useState(false);
+            const [allSubmissions, setAllSubmissions] = useState([]);
+            const [editingQuestions, setEditingQuestions] = useState([...defaultQuestions]);
+            const [showPasscodeModal, setShowPasscodeModal] = useState(false);
+            const [passcodeInput, setPasscodeInput] = useState('');
+            const [passcodeError, setPasscodeError] = useState(false);
+            const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+            const [answerGifs, setAnswerGifs] = useState(Array(defaultQuestions.length).fill([]));
+            const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+            const [showGifPicker, setShowGifPicker] = useState(false);
+            const [gifSearchTerm, setGifSearchTerm] = useState('');
+            const [gifs, setGifs] = useState([]);
+
+            const ADMIN_PASSCODE = '1028';
+
+            const workFriendlyEmojis = [
+                '👍', '👎', '🎉', '💡', '🚀', '⭐', '✅', '❌', '🔥', '💪',
+                '🎯', '📈', '📉', '⚠️', '🤔', '😊', '😕', '💯', '🏆', '🙌',
+                '👏', '🤝', '💼', '📊', '⏰', '🎨', '🔧', '🛠️', '📝', '✨',
+                '🌟', '💬', '📢', '🔔', '⚡', '🎪', '🏃', '🧩', '🎲', '🌈'
+            ];
+
+            const workFriendlyGifs = [
+                { id: 1, url: 'https://media.tenor.com/0ENdiDOszLAAAAAC/thumbs-up.gif', thumbnail: '👍', keywords: 'success thumbs up' },
+                { id: 2, url: 'https://media.tenor.com/HKLaaj0BjmMAAAAC/party.gif', thumbnail: '🎉', keywords: 'celebrate party happy' },
+                { id: 3, url: 'https://media.tenor.com/JKDDaVQ_hz0AAAAC/high-five.gif', thumbnail: '🙌', keywords: 'high five teamwork' },
+                { id: 4, url: 'https://media.tenor.com/NOYP3MzEUZAAAAAC/thinking.gif', thumbnail: '🤔', keywords: 'thinking confused question' },
+                { id: 5, url: 'https://media.tenor.com/WL0q6qD1ye0AAAAC/rocket.gif', thumbnail: '🚀', keywords: 'rocket launch growth' },
+                { id: 6, url: 'https://media.tenor.com/EcIfzm4JOUUAAAAC/facepalm.gif', thumbnail: '🤦', keywords: 'facepalm frustrated mistake' },
+                { id: 7, url: 'https://media.tenor.com/TKWlNDjP7rkAAAAC/approve.gif', thumbnail: '✅', keywords: 'approve yes good' },
+                { id: 8, url: 'https://media.tenor.com/YZ-JWYWQYn0AAAAC/mind-blown.gif', thumbnail: '🤯', keywords: 'mind blown amazing wow' },
+                { id: 9, url: 'https://media.tenor.com/X-iosqDwehkAAAAC/dancing.gif', thumbnail: '💃', keywords: 'dancing happy celebration' },
+                { id: 10, url: 'https://media.tenor.com/YREaGwIaNu0AAAAC/typing.gif', thumbnail: '⌨️', keywords: 'working hard typing' },
+                { id: 11, url: 'https://media.tenor.com/N4NwCKh6gmYAAAAC/clapping.gif', thumbnail: '👏', keywords: 'clapping applause great' },
+                { id: 12, url: 'https://media.tenor.com/qVq5tOX0eeMAAAAC/stress.gif', thumbnail: '😰', keywords: 'stress panic worried' }
+            ];
+
+            useEffect(() => {
+                loadData();
+                searchGifs();
+            }, [gifSearchTerm]);
+
+            const loadData = () => {
+                try {
+                    const savedQuestions = localStorage.getItem('retro-questions');
+                    const savedSubmissions = localStorage.getItem('retro-submissions');
+
+                    if (savedQuestions) {
+                        const parsed = JSON.parse(savedQuestions);
+                        setQuestions(parsed);
+                        setEditingQuestions(parsed);
+                        setAnswers(Array(parsed.length).fill(''));
+                        setAnswerGifs(Array(parsed.length).fill([]));
+                    }
+
+                    if (savedSubmissions) {
+                        setAllSubmissions(JSON.parse(savedSubmissions));
+                    }
+                } catch (error) {
+                    console.log('No saved data found');
+                }
+            };
+
+            const searchGifs = () => {
+                if (!gifSearchTerm.trim()) {
+                    setGifs(workFriendlyGifs);
+                    return;
+                }
+                const filtered = workFriendlyGifs.filter(gif => 
+                    gif.keywords.toLowerCase().includes(gifSearchTerm.toLowerCase())
+                );
+                setGifs(filtered.length > 0 ? filtered : workFriendlyGifs);
+            };
+
+            const handleAnswer = (value) => {
+                const newAnswers = [...answers];
+                newAnswers[currentQuestion] = value;
+                setAnswers(newAnswers);
+            };
+
+            const insertEmoji = (emoji) => {
+                const newAnswers = [...answers];
+                newAnswers[currentQuestion] = (newAnswers[currentQuestion] || '') + emoji;
+                setAnswers(newAnswers);
+                setShowEmojiPicker(false);
+            };
+
+            const insertGif = (gifUrl) => {
+                const newAnswerGifs = [...answerGifs];
+                if (!newAnswerGifs[currentQuestion]) {
+                    newAnswerGifs[currentQuestion] = [];
+                }
+                newAnswerGifs[currentQuestion] = [...newAnswerGifs[currentQuestion], gifUrl];
+                setAnswerGifs(newAnswerGifs);
+                setShowGifPicker(false);
+            };
+
+            const removeGif = (gifUrl) => {
+                const newAnswerGifs = [...answerGifs];
+                newAnswerGifs[currentQuestion] = newAnswerGifs[currentQuestion].filter(url => url !== gifUrl);
+                setAnswerGifs(newAnswerGifs);
+            };
+
+            const nextQuestion = () => {
+                if (questions[currentQuestion].required && 
+                    !answers[currentQuestion]?.trim() && 
+                    (!answerGifs[currentQuestion] || answerGifs[currentQuestion].length === 0)) {
+                    alert('This question is required. Please provide an answer before continuing.');
+                    return;
+                }
+
+                if (currentQuestion < questions.length - 1) {
+                    setCurrentQuestion(currentQuestion + 1);
+                } else {
+                    setShowSummary(true);
+                }
+            };
+
+            const prevQuestion = () => {
+                if (currentQuestion > 0) {
+                    setCurrentQuestion(currentQuestion - 1);
+                }
+            };
+
+            const reset = () => {
+                setCurrentQuestion(0);
+                setAnswers(Array(questions.length).fill(''));
+                setAnswerGifs(Array(questions.length).fill([]));
+                setShowSummary(false);
+            };
+
+            const submitRetro = () => {
+                const submission = {
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    answers: answers,
+                    gifs: answerGifs,
+                    questions: questions
+                };
+
+                const newSubmissions = [...allSubmissions, submission];
+                setAllSubmissions(newSubmissions);
+                localStorage.setItem('retro-submissions', JSON.stringify(newSubmissions));
+                alert('Your retrospective has been submitted anonymously!');
+            };
+
+            const exportResults = () => {
+                let text = '=== SPRINT RETROSPECTIVE ===\\n\\n';
+                text += `Date: ${new Date().toLocaleDateString()}\\n\\n`;
+                
+                questions.forEach((q, idx) => {
+                    text += `${q.category}\\n`;
+                    text += `${'-'.repeat(q.category.length)}\\n`;
+                    text += `${answers[idx] || '(No response)'}\\n\\n`;
+                });
+
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sprint-retro-${new Date().toISOString().split('T')[0]}.txt`;
+                a.click();
+            };
+
+            const saveCustomQuestions = () => {
+                localStorage.setItem('retro-questions', JSON.stringify(editingQuestions));
+                setQuestions(editingQuestions);
+                setAnswers(Array(editingQuestions.length).fill(''));
+                setMode('user');
+                alert('Questions saved successfully!');
+            };
+
+            const updateQuestion = (index, field, value) => {
+                const updated = [...editingQuestions];
+                updated[index] = { ...updated[index], [field]: value };
+                setEditingQuestions(updated);
+            };
+
+            const addQuestion = () => {
+                setEditingQuestions([...editingQuestions, { 
+                    category: '', 
+                    prompt: '', 
+                    icon: '•',
+                    allowEmojis: true,
+                    allowGifs: true,
+                    required: false
+                }]);
+            };
+
+            const removeQuestion = (index) => {
+                if (editingQuestions.length > 1) {
+                    setEditingQuestions(editingQuestions.filter((_, i) => i !== index));
+                }
+            };
+
+            const clearAllData = () => {
+                if (confirm('Are you sure you want to clear all submissions? This cannot be undone.')) {
+                    setAllSubmissions([]);
+                    localStorage.removeItem('retro-submissions');
+                    alert('All submissions cleared!');
+                }
+            };
+
+            const handleAdminAccess = () => {
+                if (passcodeInput === ADMIN_PASSCODE) {
+                    setIsAdminAuthenticated(true);
+                    setMode('admin');
+                    setPasscodeInput('');
+                    setShowPasscodeModal(false);
+                    setPasscodeError(false);
+                } else {
+                    setPasscodeError(true);
+                    setPasscodeInput('');
+                }
+            };
+
+            const handleAdminLogout = () => {
+                setIsAdminAuthenticated(false);
+                setMode('user');
+            };
+
+            const renderAnswerWithGifs = (text, gifs) => {
+                return (
+                    <div className="space-y-3">
+                        {text && <p className="text-gray-700 whitespace-pre-wrap">{text}</p>}
+                        {gifs && gifs.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {gifs.map((gifUrl, idx) => {
+                                    const gifData = workFriendlyGifs.find(g => g.url === gifUrl);
+                                    return (
+                                        <div key={idx} className="w-32 h-32 border-2 border-gray-200 rounded-lg overflow-hidden bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center relative">
+                                            <span className="text-5xl absolute z-10">{gifData?.thumbnail || '🎬'}</span>
+                                            <img 
+                                                src={gifUrl} 
+                                                alt={`Response GIF ${idx + 1}`}
+                                                className="w-full h-full object-cover absolute top-0 left-0"
+                                                onLoad={(e) => { e.target.style.opacity = '1'; }}
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                                style={{ opacity: 0, transition: 'opacity 0.3s' }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // CUSTOMIZE MODE
+            if (mode === 'customize' && isAdminAuthenticated) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+                        <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-8">
+                            <div className="flex justify-between items-center mb-6">
+                                <h1 className="text-3xl font-bold text-gray-800">Customize Questions</h1>
+                                <button onClick={() => setMode('admin')} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+                            </div>
+
+                            <div className="space-y-6">
+                                {editingQuestions.map((q, idx) => (
+                                    <div key={idx} className="border-2 border-gray-200 rounded-lg p-4">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <h3 className="text-lg font-semibold text-gray-700">Question {idx + 1}</h3>
+                                            {editingQuestions.length > 1 && (
+                                                <button onClick={() => removeQuestion(idx)} className="text-red-500 hover:text-red-700">Remove</button>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Icon (emoji)</label>
+                                                <input type="text" value={q.icon} onChange={(e) => updateQuestion(idx, 'icon', e.target.value)} className="w-20 px-3 py-2 border border-gray-300 rounded-lg" maxLength={2} />
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                                <input type="text" value={q.category} onChange={(e) => updateQuestion(idx, 'category', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="e.g., What went well?" />
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Prompt</label>
+                                                <textarea value={q.prompt} onChange={(e) => updateQuestion(idx, 'prompt', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none" rows={2} placeholder="Detailed question" />
+                                            </div>
+
+                                            <div className="flex gap-6">
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input type="checkbox" checked={q.allowEmojis !== false} onChange={(e) => updateQuestion(idx, 'allowEmojis', e.target.checked)} className="w-4 h-4" />
+                                                    <span className="text-sm text-gray-700">😊 Allow Emojis</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input type="checkbox" checked={q.allowGifs !== false} onChange={(e) => updateQuestion(idx, 'allowGifs', e.target.checked)} className="w-4 h-4" />
+                                                    <span className="text-sm text-gray-700">🎬 Allow GIFs</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input type="checkbox" checked={q.required === true} onChange={(e) => updateQuestion(idx, 'required', e.target.checked)} className="w-4 h-4" />
+                                                    <span className="text-sm text-gray-700">* Required</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button onClick={addQuestion} className="mt-4 w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-500 hover:text-purple-600">+ Add Question</button>
+
+                            <div className="flex gap-4 mt-8">
+                                <button onClick={saveCustomQuestions} className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700">Save Questions</button>
+                                <button onClick={() => { setEditingQuestions(defaultQuestions); saveCustomQuestions(); }} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Reset to Default</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // ADMIN MODE
+            if (mode === 'admin' && isAdminAuthenticated) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-100 p-8">
+                        <div className="max-w-6xl mx-auto bg-white rounded-lg shadow-xl p-8">
+                            <div className="flex justify-between items-center mb-6">
+                                <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setMode('customize')} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">✏️ Customize Questions</button>
+                                    <button onClick={handleAdminLogout} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Logout</button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4 mb-8">
+                                <div className="bg-blue-50 p-6 rounded-lg">
+                                    <div className="text-3xl font-bold text-blue-600">{allSubmissions.length}</div>
+                                    <div className="text-gray-600">Total Submissions</div>
+                                </div>
+                                <div className="bg-green-50 p-6 rounded-lg">
+                                    <div className="text-3xl font-bold text-green-600">{questions.length}</div>
+                                    <div className="text-gray-600">Questions</div>
+                                </div>
+                                <div className="bg-purple-50 p-6 rounded-lg">
+                                    <div className="text-3xl font-bold text-purple-600">{allSubmissions.length > 0 ? new Date(allSubmissions[allSubmissions.length - 1].timestamp).toLocaleDateString() : 'N/A'}</div>
+                                    <div className="text-gray-600">Last Submission</div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 mb-6">
+                                <button onClick={clearAllData} className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700">Clear All Data</button>
+                            </div>
+
+                            <h2 className="text-2xl font-bold text-gray-800 mb-4">All Submissions (Anonymous)</h2>
+                            
+                            {allSubmissions.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">No submissions yet.</div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {allSubmissions.map((sub, subIdx) => (
+                                        <div key={subIdx} className="border-2 border-gray-200 rounded-lg p-6">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-lg font-semibold text-gray-700">Submission #{subIdx + 1}</h3>
+                                                <span className="text-sm text-gray-500">{new Date(sub.timestamp).toLocaleString()}</span>
+                                            </div>
+                                            
+                                            <div className="space-y-4">
+                                                {sub.questions.map((q, qIdx) => (
+                                                    <div key={qIdx} className="border-l-4 border-indigo-400 pl-4">
+                                                        <h4 className="font-semibold text-indigo-600 mb-1">{q.icon} {q.category}</h4>
+                                                        {renderAnswerWithGifs(sub.answers[qIdx], sub.gifs?.[qIdx])}
+                                                        {!sub.answers[qIdx] && (!sub.gifs?.[qIdx] || sub.gifs[qIdx].length === 0) && (
+                                                            <em className="text-gray-400">(No response)</em>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            // SUMMARY VIEW
+            if (showSummary) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 p-8">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="bg-white rounded-3xl shadow-2xl p-8">
+                                <div className="text-center mb-8">
+                                    <div className="text-6xl mb-4">🎉</div>
+                                    <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">Amazing Work!</h1>
+                                    <p className="text-gray-600">Here's your retrospective summary</p>
+                                </div>
+                                
+                                {questions.map((q, idx) => (
+                                    <div key={idx} className="mb-6 pb-6 border-b border-gray-200 last:border-b-0">
+                                        <h2 className="text-xl font-semibold text-indigo-600 mb-3 flex items-center gap-2">
+                                            <span className="text-3xl">{q.icon}</span>
+                                            {q.category}
+                                        </h2>
+                                        {renderAnswerWithGifs(answers[idx], answerGifs[idx])}
+                                        {!answers[idx] && (!answerGifs[idx] || answerGifs[idx].length === 0) && (
+                                            <em className="text-gray-400">(No response)</em>
+                                        )}
+                                    </div>
+                                ))}
+
+                                <div className="flex gap-4 mt-8 flex-wrap">
+                                    <button onClick={submitRetro} className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl hover:from-green-600 hover:to-emerald-700 shadow-lg">👥 Submit Anonymously</button>
+                                    <button onClick={exportResults} className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-2xl hover:from-blue-600 hover:to-cyan-700 shadow-lg">💾 Export</button>
+                                    <button onClick={reset} className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-2xl hover:from-gray-600 hover:to-gray-700 shadow-lg">🔄 Start Over</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // USER MODE - MAIN QUESTION VIEW
+            const progress = ((currentQuestion + 1) / questions.length) * 100;
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-8 relative overflow-hidden">
+                    <div className="absolute top-20 left-20 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"></div>
+                    <div className="absolute top-40 right-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"></div>
+                    <div className="absolute bottom-20 left-40 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000"></div>
+                    
+                    <div className="max-w-3xl mx-auto relative z-10">
+                        {showPasscodeModal && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+                                    <h2 className="text-2xl font-bold text-gray-800 mb-4">👁️ Admin Access</h2>
+                                    <p className="text-gray-600 mb-6">Enter the admin passcode to access the admin panel.</p>
+                                    
+                                    <input
+                                        type="password"
+                                        value={passcodeInput}
+                                        onChange={(e) => { setPasscodeInput(e.target.value); setPasscodeError(false); }}
+                                        onKeyPress={(e) => { if (e.key === 'Enter') handleAdminAccess(); }}
+                                        placeholder="Enter passcode"
+                                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none mb-4 text-lg text-center tracking-widest
